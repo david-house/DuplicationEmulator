@@ -23,7 +23,7 @@ internal class Program
 
         if (load)
         {
-            var cnStr = "SERVER=nixnas;DATABASE=target;USER ID=sa;PASSWORD=Cession01@@@;ENCRYPT=No;";
+            var cnStr = "SERVER=sqlhost;DATABASE=target;USER ID=sa;PASSWORD=sa;ENCRYPT=No;";
             using var cn = new SqlConnection(cnStr);
             using var cmd = new SqlCommand("", cn);
             char[] alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".ToCharArray();
@@ -144,7 +144,7 @@ public static class Transforms
               AND a.TAKEN_DATE IS NULL
               """;
 
-        var cn = new SqlConnection("SERVER=nixnas;DATABASE=target;USER ID=sa;PASSWORD=Cession01@@@;ENCRYPT=No;");
+        var cn = new SqlConnection("SERVER=sqlhost;DATABASE=target;USER ID=sa;PASSWORD=sa;ENCRYPT=No;");
         var cmd = new SqlCommand(sql, cn);
         payload.SqlStartTime = DateTimeOffset.Now;
         cn.Open();
