@@ -78,7 +78,7 @@ internal class Program
         getNextBlock.LinkTo(saveBuffer, linkOptions);
         saveBuffer.LinkTo(saveBlock, linkOptions);
 
-        for (int i = 0; i < 100000; i++)
+        for (int i = 0; i < 1000; i++)
         {
             startBlock.Post(new ResultPayload(i));
             
@@ -94,8 +94,11 @@ internal class Program
             Console.WriteLine($"{startBlock.Count} {getNextBlock.InputCount} {getNextBlock.OutputCount} {saveBuffer.Count} {saveBlock.InputCount}");
 
         }
-            
-     }
+        Task.Delay(1000).Wait();
+        Console.WriteLine(ResultPayloadAnalyzer.GetResults());
+    }
+
+    
 }
 
 public class ResultPayload
@@ -110,7 +113,9 @@ public class ResultPayload
     public string Composite => $"{Prefix} {Suffix}";
     public bool IsDeadlockVictim { get; set; } = false;
     public int Spid { get; set; }
+    public int DurationMs { get; set; }
 
+    public ResultPayload() { }
     public ResultPayload(int i)
     {
         Id = i;
@@ -134,7 +139,7 @@ public static class Transforms
               UPDATE a
               SET TAKEN_DATE = GETDATE()
               OUTPUT INSERTED.ROWID, INSERTED.PREFIX, INSERTED.SUFFIX, INSERTED.TAKEN_DATE, @@SPID AS SPID
-              FROM Simulacrum a WITH (ROWLOCK)
+              FROM Simulacrum a
               WHERE a.ROWID = (SELECT MIN(b.ROWID) FROM Simulacrum b WHERE b.TAKEN_DATE IS NULL)
               AND a.TAKEN_DATE IS NULL
               """;
@@ -178,6 +183,58 @@ public static class Transforms
         cn.Close();
         payload.SqlEndTime = DateTimeOffset.Now;
         return payload;
+    }
+
+}
+
+public static class ResultPayloadAnalyzer
+{
+
+
+    public static string GetResults()
+    {
+        var rps = GetResultPayloads()
+            .ToArray();
+
+        var samples = rps.Length;
+        var deadlocks = rps.Count(r => r.IsDeadlockVictim);
+        var avgDurationMs = rps.Average(r => r.DurationMs);
+        var medianDurationMs = rps.OrderBy(x => x.DurationMs).Skip(samples / 2).First();
+        var duplicates = rps.GroupBy(r => r.Composite).Where(g => g.Count() > 1).Select(g => g.Key).ToArray().Length;
+
+        return $"n={samples} deadlocks={deadlocks} avgDurationMs={avgDurationMs:0} medianDurationMs={medianDurationMs.DurationMs:0} duplicates={duplicates}";
+    }
+    public static IEnumerable<ResultPayload> GetResultPayloads()
+    {
+        var lines = File.ReadAllLines("results.txt");
+        foreach (var line in lines)
+        {
+            var parts = line.Split('\t');
+
+            if (parts.Length < 8) continue;
+
+            var id = int.Parse(parts[0]);
+            var sqlStartTime = DateTimeOffset.Parse(parts[1]);
+            var prefix = parts[2];
+            var suffix = parts[3];
+            var composite = parts[4];
+            var sqlDuration = int.Parse(parts[5]);
+            var spid = int.Parse(parts[6]);
+            var isDeadlockVictim = bool.Parse(parts[7]);
+
+            yield return new ResultPayload()
+            {
+                Id = id,
+                SqlStartTime = sqlStartTime,
+                DurationMs = sqlDuration,
+                Prefix = prefix,
+                Suffix = suffix,
+                Spid = spid,
+                IsDeadlockVictim = isDeadlockVictim
+            };
+
+            
+        }
     }
 
 }
